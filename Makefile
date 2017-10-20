@@ -4,6 +4,9 @@ all: build
 clone-tezos:
 	git clone -b alphanet https://github.com/tezos/tezos.git # clone with https
 
+emacs:
+	PATH=$(PATH) make
+
 build: _obuild
 	ocp-build build
 

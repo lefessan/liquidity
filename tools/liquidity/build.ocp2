@@ -37,12 +37,21 @@ if(with_version){
   version_info = {};
 }
 
+OCaml.library("ocplib-liquidity-misc",
+  ocaml + {
+    files = [ "iSO8601.ml" ];
+    });
+
+OCaml.library("ocplib-liquidity-env",
+  ocaml + {
+    files = [ "env/liquidityEnv.ml" ];
+    requires = [ "zarith"; "ocplib-liquidity-misc"  ];
+  });
+
+
 OCaml.library("ocplib-liquidity",
    ocaml + {
      files = [
-
-       "iSO8601.ml";
-
        "liquidVersion.ml", version_info;
        "liquidMisc.ml";
 
@@ -66,6 +75,7 @@ OCaml.library("ocplib-liquidity",
      ];
      requires = [
         "ocplib-dot";
+        "ocplib-liquidity-misc";
      ];
 
    });
@@ -159,9 +169,3 @@ OCaml.program("liquidity-mini",
      ];
 
    });
-
-OCaml.library("liquidity-env",
-  ocaml + {
-    files = [ "env/liquidityEnv.ml" ];
-    requires = [ "zarith" ];
-  });

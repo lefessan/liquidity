@@ -7,6 +7,39 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(* External word *)
+
+module Dependencies = struct
+
+
+  module Z : sig
+    type t
+    val of_string : string -> t
+    val of_int : int -> t
+    val to_int : t -> int
+    val of_float : float -> t
+    val to_float : t -> float
+    val add : t -> t -> t
+    val sub : t -> t -> t
+    val mul : t -> t -> t
+    val ediv_rem : t -> t -> t * t
+    val abs  : t -> t
+  end = Z (* Zarith *)
+
+  module ISO8601 : sig
+      val float_of_string : string -> float
+      val string_of_float : float -> string
+      val time : unit -> float
+  end = ISO8601
+
+end
+
+open Dependencies
+
+
+
+
+
 (* This module is completely unsafe: it can only by used to execute a
 file that has been correctly typechecked by the `liquidity`
 typechecker.  *)
@@ -25,7 +58,15 @@ type key = Key of string
 type key_hash = Key_hash of string
 type signature = Signature of string
 
-type ('arg, 'res) contract
+type ('arg, 'res) contract = {
+    manager : key_hash;
+    delegate : key_hash option;
+    spendable : bool;
+    delegatable : bool;
+    mutable balance : tez;
+    call : ('arg -> 'res);
+    storage : Obj.t ref;
+  }
 
 module Signature : sig
   val of_string : string -> signature
@@ -78,29 +119,14 @@ end
 
 module Timestamp : sig
   val of_string : string -> timestamp
+  val to_string : timestamp -> string
 end = struct
-  let of_string time = assert false
-end
+  let of_string s =
+    Timestamp (Z.of_float (ISO8601.float_of_string s))
+  let to_string = function
+      Timestamp f -> ISO8601.string_of_float (Z.to_float f)
+    | _ -> assert false
 
-module Current : sig
-
-  val amount : unit -> tez
-  val fail : unit -> 'a
-  val time : unit -> timestamp
-  val balance : unit -> tez
-  val gas : unit -> tez (* NOT TESTED *)
-  val contract : unit -> ('a,'b) contract (* unsafe, NOT IMPLEMENTED !! *)
-  val source : unit -> ('a,'b) contract (* NOT TESTED *)
-
-end = struct
-
-  let amount () = Tez (Z.of_int 100)
-  let fail () = raise Fail
-  let time () = Timestamp (Z.of_float (Unix.gettimeofday ()))
-  let balance () = assert false (* TODO *)
-  let gas () = assert false
-  let contract () = assert false
-  let source () = assert false
 end
 
 
@@ -371,6 +397,15 @@ end = struct
     else ret
 end
 
+type call = {
+    contract : ( unit, unit ) contract;
+    amount : tez;
+  }
+
+(* TODO: initialize with at least a fake address so that source will
+not fail.*)
+let calls = ref []
+
 module Contract : sig
 
   val call : ('arg, 'res) contract -> tez -> 'storage -> 'arg ->
@@ -382,16 +417,76 @@ module Contract : sig
                ( ('a *'b) -> ('c * 'b) ) -> 'b ->
                ('a,'c) contract
   val source : unit -> ('a,'b) contract
+  val self : unit -> ('a,'b) contract
+end = struct
+
+  let self () =
+    match !calls with
+    | [] -> assert false
+    | call :: _ -> (Obj.magic call.contract : ('a,'b) contract)
+
+  let source () =
+    match !calls with
+    | [] | [_] -> assert false
+    | _ :: call :: _ -> (Obj.magic call.contract : ('a,'b) contract)
+
+  let call contract amount storage arg =
+    let c = self () in
+    c.storage := Obj.repr storage;
+    let res = contract.call arg in
+    (res, Obj.magic ! (c.storage))
+
+  let manager contract = contract.manager
+  let create manager delegate
+             spendable delegatable balance
+             body storage =
+
+    let storage = ref storage in
+    let call arg =
+      let (res, new_storage) = body (arg, !storage) in
+      storage := new_storage;
+      res
+    in
+    let storage : Obj.t ref = Obj.magic storage in
+    let c = {
+        manager;
+        delegate;
+        spendable; delegatable;
+        balance;
+        call;
+        storage;
+      } in
+    c
+
+end
+
+module Current : sig
+
+  val amount : unit -> tez
+  val fail : unit -> 'a
+  val time : unit -> timestamp
+  val balance : unit -> tez
+  val gas : unit -> tez (* NOT TESTED *)
+  val contract : unit -> ('a,'b) contract (* unsafe, NOT IMPLEMENTED in Michelson !! *)
+  val source : unit -> ('a,'b) contract (* NOT TESTED *)
 
 end = struct
 
-  let call contract amount storage arg = assert false (* TODO *)
-  let manager _contract = assert false (* TODO *)
-  let create _key _manager
-             _spendable _delegatable _amount
-             _f _storage = assert false (* TODO *)
-  let source () = assert false (* TODO *)
+  let amount () =
+    match !calls with
+    | [] -> assert false
+    | call :: _ -> call.amount
+
+  let fail () = raise Fail
+  let time () = Timestamp (Z.of_float (ISO8601.time ()))
+  let balance () =
+    let c = Contract.self () in
+    c.balance
+  let gas () = assert false (* TODO *)
+  let contract () = Contract.self ()
+  let source () = Contract.source ()
 end
+
 
 type ('a,'b) variant = Left of 'a | Right of 'b
 

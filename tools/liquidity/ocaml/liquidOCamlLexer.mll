@@ -21,9 +21,9 @@
 
 let tez_char = '\231'
 let timestamp_char = '\232'
-let keyhash_char = '\233'
-let key_char = '\234'
-let signature_char = '\235'
+let keyhash_char = '\233' and keyhash_len = 36
+let key_char = '\234' and key_len = 54
+let signature_char = '\235' and signature_len = 99
 
 open Lexing
 open Misc
@@ -386,7 +386,7 @@ rule token = parse
   | keyhash_literal
       {
         let s = Lexing.lexeme lexbuf in
-        if String.length s = 36 then
+        if String.length s = keyhash_len then
           INT (s, Some keyhash_char)
         else begin
             (* TODO warning *)
@@ -396,7 +396,7 @@ rule token = parse
   | key_literal
       {
         let s = Lexing.lexeme lexbuf in
-        if String.length s = 54 then
+        if String.length s = key_len then
           INT (s, Some key_char)
         else begin
             (* TODO warning *)
@@ -406,7 +406,7 @@ rule token = parse
   | signature_literal
       {
         let s = Lexing.lexeme lexbuf in
-        if String.length s = 99 then
+        if String.length s = signature_len then
           INT (s, Some signature_char)
         else begin
             (* TODO warning *)

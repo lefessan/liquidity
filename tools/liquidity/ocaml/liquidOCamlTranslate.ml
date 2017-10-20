@@ -112,7 +112,7 @@ let clean_ast =
               { txt = Lident "Source" }, None
               )
         ->
-         Exp.apply ~loc (exp_ident ~loc "Contract.source")
+         Exp.apply ~loc (exp_ident ~loc "Current.source")
                    [Nolabel, exp_unit ~loc]
 
       | Pexp_setfield (record, label1, value) ->
